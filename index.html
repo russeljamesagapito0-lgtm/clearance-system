@@ -1412,7 +1412,12 @@ function ClearanceTracker({user,clearance,selectedOffice,setSelectedOffice}){
     <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:28,width:'100%'}}>
       {CLEARANCE_REASON_CARDS.map((card,i)=>(
         <div key={card.purpose}
-          onClick={()=>{setInitForm(f=>({...f,purpose:card.purpose}));}}
+          onClick={() => {
+  setInitForm(f => ({
+    ...f,
+    purpose: card.purpose
+  }));
+}}
           style={{
             background: card.color,
             borderRadius:20,

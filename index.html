@@ -201,7 +201,99 @@
     .main-content { padding:16px; }
     .sidebar { display:none; }
     .hero { padding:48px 20px 40px; }
+
+    /* NAV */
+    .nav { padding:0 16px; height:56px; }
+    .nav-brand { font-size:17px; }
+    .nav-user span:not(.nav-avatar) { display:none; }
+
+    /* LAYOUT — no sidebar on mobile, full width */
+    .layout { display:block; }
+
+    /* MOBILE BOTTOM NAV — replaces sidebar */
+    .mobile-nav {
+      display:flex !important;
+      position:fixed; bottom:0; left:0; right:0;
+      background:var(--navy); z-index:200;
+      border-top:2px solid rgba(201,168,76,.3);
+      overflow-x:auto; -webkit-overflow-scrolling:touch;
+    }
+    .mobile-nav-item {
+      flex:1; min-width:60px; display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      padding:8px 4px 10px; cursor:pointer;
+      font-size:10px; color:rgba(255,255,255,.6);
+      border:none; background:none; gap:3px;
+      border-top:3px solid transparent; transition:all .2s;
+      white-space:nowrap;
+    }
+    .mobile-nav-item.active { color:var(--gold); border-top-color:var(--gold); }
+    .mobile-nav-item span:first-child { font-size:20px; }
+
+    /* push content up from bottom nav */
+    .main-content { padding:16px 16px 80px; }
+
+    /* TABLES — scroll horizontally on mobile */
+    .table-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+    .data-table { min-width:600px; }
+    .data-table th, .data-table td { padding:10px 12px; font-size:12px; }
+
+    /* CARDS */
+    .card { padding:16px; border-radius:12px; }
+    .stats-row { grid-template-columns:1fr 1fr; gap:12px; }
+    .stat-card { padding:14px 16px; }
+    .stat-num { font-size:24px; }
+
+    /* AUTH */
+    .auth-card { padding:24px 20px; }
+
+    /* PORTAL MODALS on mobile */
+    .mobile-portal-card {
+      width:calc(100% - 32px) !important;
+      margin:16px auto 80px !important;
+      padding:24px 20px !important;
+      border-radius:14px !important;
+    }
+
+    /* CERT */
+    #ascot-cert { padding:16px !important; font-size:10px !important; }
+
+    /* HERO steps grid */
+    .hero-steps-grid { grid-template-columns:1fr 1fr !important; }
+
+    /* FEATURES grid */
+    .features-grid { grid-template-columns:1fr !important; }
+
+    /* OFFICES grid */
+    .offices-grid .office-header { padding:12px 14px; }
+
+    /* NOTIF PANEL */
+    .notif-panel { width:calc(100vw - 32px) !important; right:-60px !important; }
+
+    /* CLEARANCE reason cards */
+    .clearance-reason-grid { grid-template-columns:1fr !important; gap:16px !important; }
+
+    /* STEP items */
+    .step-item { flex-wrap:wrap; }
+
+    /* FACULTY TYPE selector */
+    .faculty-type-grid { grid-template-columns:1fr !important; }
+
+    /* portal modals full width on mobile */
+    .portal-modal-inner {
+      width:calc(100% - 32px) !important;
+      margin:16px auto 90px !important;
+      padding:20px 16px !important;
+      border-radius:14px !important;
+    }
+
+    /* name grid in portal becomes single col */
+    .portal-name-grid { grid-template-columns:1fr !important; }
+    .portal-email-grid { grid-template-columns:1fr !important; }
   }
+
+  /* Desktop hides mobile nav */
+  .mobile-nav { display:none; }
 
   @media print {
     body { background:#fff; }
@@ -242,6 +334,7 @@
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
 <script type="text/babel">
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
@@ -316,87 +409,154 @@ const createClearanceModel = (studentId,o={}) => ({
   overallStatus:'in_progress',createdAt:new Date().toISOString(),completedAt:null,...o
 });
 
+// ============================================================
+// SUPABASE CLIENT
+// ============================================================
+const SUPA_URL = 'https://qppzxfdydfouejdmcpwc.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFwcHp4ZmR5ZGZvdWVqZG1jcHdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0MTE4MDUsImV4cCI6MjA5Mzk4NzgwNX0.TBcM9zRjsCWevwcsmckMrhdXeRbpCoY_chuQyKrpB_g';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+// ============================================================
+// LAYER 2: STORE (Supabase-powered, realtime)
+// ============================================================
 class AppStore {
-  constructor() {
-    this.users=[]; this.clearances={}; this.notifications={}; this._listeners=new Set();
-    this._load();
+  constructor(){
+    this.users=[];this.clearances={};this.notifications={};
+    this._listeners=new Set();this._ready=false;
   }
-  _defaultAdmins(){
-    const mkUser=(o)=>({...createUserModel(),id:'',firstName:'',lastName:'',email:'',password:'',status:'accepted',...o});
-    return [
-      mkUser({id:'admin-001',firstName:'Super',lastName:'Admin',email:'admin@school.edu',password:'Admin@123',role:ROLES.ADMIN}),
-      mkUser({id:'admin-002',firstName:'System',lastName:'Admin',email:'admin2@school.edu',password:'Admin@456',role:ROLES.ADMIN}),
-    ];
-  }
-  _load(){
-    try{
-      const saved=localStorage.getItem('clearsync_db');
-      if(saved){
-        const db=JSON.parse(saved);
-        this.users=db.users||this._defaultAdmins();
-        this.clearances=db.clearances||{};
-        this.notifications=db.notifications||{};
-        // ensure default admins always exist
-        const adminIds=['admin-001','admin-002'];
-        this._defaultAdmins().forEach(a=>{
-          if(!this.users.find(u=>u.id===a.id))this.users.push(a);
-        });
-      } else {
-        this.users=this._defaultAdmins();
-        this.clearances={};
-        this.notifications={};
-        this._save();
-      }
-    }catch(e){
-      this.users=this._defaultAdmins();
-      this.clearances={};
-      this.notifications={};
-    }
-  }
-  _save(){
-    try{
-      localStorage.setItem('clearsync_db',JSON.stringify({
-        users:this.users,
-        clearances:this.clearances,
-        notifications:this.notifications,
-        savedAt:new Date().toISOString()
-      }));
-    }catch(e){console.warn('Storage save failed',e);}
-  }
+
+  // ---- subscribe to re-renders ----
   sub(fn){this._listeners.add(fn);return()=>this._listeners.delete(fn);}
   _emit(){this._listeners.forEach(fn=>fn());}
-  _notify_store(uid,msg){if(!this.notifications[uid])this.notifications[uid]=[];this.notifications[uid].unshift({id:Date.now(),message:msg,read:false,createdAt:new Date().toISOString()});}
+
+  // ---- initial load ----
+  async init(){
+    await this._loadAll();
+    this._subscribeRealtime();
+    this._ready=true;
+    this._emit();
+  }
+
+  async _loadAll(){
+    const [uRes,cRes,nRes]=await Promise.all([
+      supa.from('users').select('*'),
+      supa.from('clearances').select('*'),
+      supa.from('notifications').select('*'),
+    ]);
+    this.users=uRes.data||[];
+    // ensure default admins exist
+    await this._ensureAdmins();
+    // re-fetch after ensuring admins
+    const u2=await supa.from('users').select('*');
+    this.users=u2.data||[];
+
+    this.clearances={};
+    (cRes.data||[]).forEach(r=>{
+      const offices=typeof r.offices==='string'?JSON.parse(r.offices):r.offices||{};
+      this.clearances[r.studentId]={...r,offices};
+    });
+    this.notifications={};
+    (nRes.data||[]).forEach(n=>{
+      if(!this.notifications[n.userId])this.notifications[n.userId]=[];
+      this.notifications[n.userId].push(n);
+    });
+    // sort notifications newest first
+    Object.keys(this.notifications).forEach(uid=>{
+      this.notifications[uid].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+    });
+  }
+
+  async _ensureAdmins(){
+    const defaults=[
+      {id:'admin-001',firstName:'Super',lastName:'Admin',email:'admin@school.edu',password:'Admin@123',role:'admin',status:'accepted',createdAt:new Date().toISOString()},
+      {id:'admin-002',firstName:'System',lastName:'Admin',email:'admin2@school.edu',password:'Admin@456',role:'admin',status:'accepted',createdAt:new Date().toISOString()},
+    ];
+    for(const a of defaults){
+      const exists=this.users.find(u=>u.id===a.id);
+      if(!exists){
+        await supa.from('users').upsert(a,{onConflict:'id'});
+      }
+    }
+  }
+
+  _subscribeRealtime(){
+    supa.channel('db-changes')
+      .on('postgres_changes',{event:'*',schema:'public',table:'users'},()=>this._reload('users'))
+      .on('postgres_changes',{event:'*',schema:'public',table:'clearances'},()=>this._reload('clearances'))
+      .on('postgres_changes',{event:'*',schema:'public',table:'notifications'},()=>this._reload('notifications'))
+      .subscribe();
+  }
+
+  async _reload(table){
+    if(table==='users'){
+      const {data}=await supa.from('users').select('*');
+      this.users=data||[];
+    } else if(table==='clearances'){
+      const {data}=await supa.from('clearances').select('*');
+      this.clearances={};
+      (data||[]).forEach(r=>{
+        const offices=typeof r.offices==='string'?JSON.parse(r.offices):r.offices||{};
+        this.clearances[r.studentId]={...r,offices};
+      });
+    } else if(table==='notifications'){
+      const {data}=await supa.from('notifications').select('*');
+      this.notifications={};
+      (data||[]).forEach(n=>{
+        if(!this.notifications[n.userId])this.notifications[n.userId]=[];
+        this.notifications[n.userId].push(n);
+      });
+      Object.keys(this.notifications).forEach(uid=>{
+        this.notifications[uid].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+      });
+    }
+    this._emit();
+  }
+
+  // ---- helpers ----
+  _notif(uid,msg){
+    const n={id:'notif-'+Date.now()+Math.random(),userId:uid,message:msg,read:false,createdAt:new Date().toISOString()};
+    supa.from('notifications').insert(n).then(()=>{});
+  }
+
   getUser(id){return this.users.find(u=>u.id===id);}
-  getByEmail(e){return this.users.find(u=>u.email===e);}
+  getByEmail(e){return this.users.find(u=>u.email.toLowerCase()===e.toLowerCase());}
   getPending(){return this.users.filter(u=>u.status==='pending');}
   getStudents(){return this.users.filter(u=>u.role===ROLES.STUDENT);}
   getFaculty(){return this.users.filter(u=>u.role===ROLES.FACULTY);}
   getAdvisers(){return this.getFaculty().filter(f=>f.facultyType==='adviser');}
   getDeans(){return this.getFaculty().filter(f=>f.facultyType==='dean');}
-  register(data){
+
+  async register(data){
     if(this.getByEmail(data.email))return{success:false,error:'Email already registered.'};
     const user={...createUserModel(),...data,id:data.role+'-'+Date.now(),status:'pending',createdAt:new Date().toISOString()};
-    this.users.push(user);
+    const {error}=await supa.from('users').insert(user);
+    if(error)return{success:false,error:error.message};
     const admins=this.users.filter(u=>u.role===ROLES.ADMIN);
-    admins.forEach(a=>this._notify_store(a.id,`New registration request: ${data.firstName} ${data.lastName} (${data.role})`));
-    this._save();this._emit();return{success:true,user};
+    admins.forEach(a=>this._notif(a.id,`New registration request: ${data.firstName} ${data.lastName} (${data.role})`));
+    return{success:true,user};
   }
-  registerFaculty(data){
+
+  async registerFaculty(data){
     if(this.getByEmail(data.email))return{success:false,error:'Email already registered.'};
     const user={...createUserModel(),...data,id:'fac-'+Date.now(),status:'accepted',createdAt:new Date().toISOString()};
-    this.users.push(user);
-    this._save();this._emit();return{success:true,user};
+    const {error}=await supa.from('users').insert(user);
+    if(error)return{success:false,error:error.message};
+    return{success:true,user};
   }
-  deleteFaculty(uid){
-    this.users=this.users.filter(u=>u.id!==uid);
-    this._save();this._emit();
+
+  async deleteFaculty(uid){
+    await supa.from('users').delete().eq('id',uid);
   }
-  updateStatus(uid,status,note=''){
-    const u=this.users.find(u=>u.id===uid);if(!u)return false;
-    u.status=status;u.rejectionNote=note;
-    this._notify_store(uid,status==='accepted'?'Your account has been approved! You can now log in.':`Your account was rejected. Reason: ${note||'Please contact admin.'}`);
-    this._save();this._emit();return true;
+
+  async updateStatus(uid,status,note=''){
+    const {error}=await supa.from('users').update({status,rejectionNote:note}).eq('id',uid);
+    if(error)return false;
+    this._notif(uid,status==='accepted'
+      ?'Your account has been approved! You can now log in.'
+      :`Your account was rejected. Reason: ${note||'Please contact admin.'}`);
+    return true;
   }
+
   login(email,password){
     const u=this.getByEmail(email);
     if(!u)return{success:false,error:'Email not found.'};
@@ -405,27 +565,37 @@ class AppStore {
     if(u.status==='rejected')return{success:false,error:`Account rejected. ${u.rejectionNote?'Reason: '+u.rejectionNote:'Please contact admin.'}`};
     return{success:true,user:u};
   }
+
   getClearance(sid){return this.clearances[sid]||null;}
-  initClearance(sid,purpose,detail){
+
+  async initClearance(sid,purpose,detail){
+    const existing=this.getClearance(sid);
+    if(existing)return existing;
     const r=createClearanceModel(sid,{purpose,purposeDetail:detail});
-    this.clearances[sid]=r;this._save();this._emit();return r;
+    const {error}=await supa.from('clearances').insert({...r,offices:r.offices});
+    if(error){console.error(error);return null;}
+    return r;
   }
-  submitOffice(sid,officeId,steps){
-    const r=this.clearances[sid];if(!r)return false;
+
+  async submitOffice(sid,officeId,steps){
+    const r=this.getClearance(sid);if(!r)return false;
     const o=r.offices[officeId];if(!o||!o.canProceed)return false;
     o.status='submitted';o.submittedAt=new Date().toISOString();o.steps={...steps};
     const stu=this.getUser(sid);
     if(officeId==='dean'){
-      this.getDeans().filter(d=>d.deanDepartment===stu?.department).forEach(d=>this._notify_store(d.id,`New clearance request from ${stu?.firstName} ${stu?.lastName} (${stu?.department}).`));
+      this.getDeans().filter(d=>d.deanDepartment===stu?.department).forEach(d=>this._notif(d.id,`New clearance request from ${stu?.firstName} ${stu?.lastName} (${stu?.department}).`));
     } else if(officeId==='adviser'){
-      this.getAdvisers().filter(a=>a.handledSections&&a.handledSections.some(sec=>sec.toLowerCase()===(stu?.section||'').toLowerCase())).forEach(a=>this._notify_store(a.id,`New adviser clearance request from ${stu?.firstName} ${stu?.lastName} (${stu?.section}).`));
+      this.getAdvisers().filter(a=>a.handledSections&&a.handledSections.some(sec=>sec.toLowerCase()===(stu?.section||'').toLowerCase())).forEach(a=>this._notif(a.id,`New adviser clearance request from ${stu?.firstName} ${stu?.lastName} (${stu?.section}).`));
     } else {
-      this.getFaculty().filter(f=>f.facultyType===officeId).forEach(f=>this._notify_store(f.id,`New request from ${stu?.firstName} ${stu?.lastName}.`));
+      this.getFaculty().filter(f=>f.facultyType===officeId).forEach(f=>this._notif(f.id,`New request from ${stu?.firstName} ${stu?.lastName}.`));
     }
-    this._save();this._emit();return true;
+    const {error}=await supa.from('clearances').update({offices:r.offices,updatedAt:new Date().toISOString()}).eq('studentId',sid);
+    if(error)console.error(error);
+    return true;
   }
-  reviewOffice(sid,officeId,approved,note){
-    const r=this.clearances[sid];if(!r)return false;
+
+  async reviewOffice(sid,officeId,approved,note){
+    const r=this.getClearance(sid);if(!r)return false;
     const o=r.offices[officeId];if(!o)return false;
     o.status=approved?'approved':'rejected';o.reviewerNote=note;o.reviewedAt=new Date().toISOString();
     if(approved){
@@ -433,10 +603,12 @@ class AppStore {
       if(idx>=0&&idx<OFFICE_ORDER.length-1)r.offices[OFFICE_ORDER[idx+1]].canProceed=true;
       if(OFFICE_ORDER.every(id=>r.offices[id].status==='approved')){r.overallStatus='completed';r.completedAt=new Date().toISOString();}
     }
-    const stu=this.getUser(sid);
-    this._notify_store(sid,`Your ${OFFICES_CONFIG[officeId].label} request was ${approved?'✅ approved':'❌ rejected'}.${note?' Note: '+note:''}`);
-    this._save();this._emit();return true;
+    this._notif(sid,`Your ${OFFICES_CONFIG[officeId].label} request was ${approved?'✅ approved':'❌ rejected'}.${note?' Note: '+note:''}`);
+    const {error}=await supa.from('clearances').update({offices:r.offices,overallStatus:r.overallStatus,completedAt:r.completedAt||null,updatedAt:new Date().toISOString()}).eq('studentId',sid);
+    if(error)console.error(error);
+    return true;
   }
+
   getRequests(facultyType,deptFilter=null,sectionFilter=null){
     return Object.values(this.clearances).filter(r=>{
       const o=r.offices[facultyType];
@@ -449,9 +621,27 @@ class AppStore {
       return true;
     }).map(r=>({...r,student:this.getUser(r.studentId)}));
   }
+
   getNotifs(uid){return this.notifications[uid]||[];}
-  markRead(uid){(this.notifications[uid]||[]).forEach(n=>n.read=true);this._save();this._emit();}
+
+  async markRead(uid){
+    const unread=(this.notifications[uid]||[]).filter(n=>!n.read).map(n=>n.id);
+    if(unread.length===0)return;
+    await supa.from('notifications').update({read:true}).in('id',unread);
+  }
+
   unreadCount(uid){return(this.notifications[uid]||[]).filter(n=>!n.read).length;}
+
+  // backup/restore helpers (admin database page)
+  getAllData(){
+    return{users:this.users,clearances:Object.values(this.clearances),notifications:this.notifications,exportedAt:new Date().toISOString()};
+  }
+
+  async importData(data){
+    if(data.users){for(const u of data.users){await supa.from('users').upsert(u,{onConflict:'id'});}}
+    if(data.clearances){for(const c of data.clearances){await supa.from('clearances').upsert(c,{onConflict:'id'});}}
+    await this._loadAll();this._emit();
+  }
 }
 
 const store = new AppStore();
@@ -892,7 +1082,7 @@ function AuthForm({role,facultyType,onSuccess,onBack}){
     },600);
   };
 
-  const handleRegister=()=>{
+  const handleRegister=async()=>{
     setError('');
     if(!form.firstName||!form.lastName||!form.email||!form.password)return setError('Please fill all required fields.');
     if(form.password!==form.confirmPassword)return setError('Passwords do not match.');
@@ -902,12 +1092,10 @@ function AuthForm({role,facultyType,onSuccess,onBack}){
     const fullAddress=[form.barangay,form.municipality,form.province].filter(Boolean).join(', ');
     const submitForm={...form,address:fullAddress||form.address};
     setLoading(true);
-    setTimeout(()=>{
-      const r=store.register({...submitForm,role,facultyType:role===ROLES.FACULTY?facultyType:null});
-      setLoading(false);
-      if(r.success)setSuccess(role===ROLES.ADMIN?'Admin account created! You may log in.':'Registration submitted! Please wait for admin approval.');
-      else setError(r.error);
-    },600);
+    const r=await store.register({...submitForm,role,facultyType:role===ROLES.FACULTY?facultyType:null});
+    setLoading(false);
+    if(r.success)setSuccess(role===ROLES.ADMIN?'Admin account created! You may log in.':'Registration submitted! Please wait for admin approval.');
+    else setError(r.error);
   };
 
   const canRegister = role !== ROLES.FACULTY;
@@ -1083,6 +1271,14 @@ function StudentDashboard({user,onLogout}){
         {page==='certificate'&&<ClearanceCertificate user={user} clearance={clearance}/>}
       </main>
     </div>
+    {/* Mobile bottom nav */}
+    <nav className="mobile-nav no-print">
+      {[{id:'overview',icon:'🏠',label:'Home'},{id:'clearance',icon:'📋',label:'Clearance'},{id:'certificate',icon:'🏆',label:'Certificate'}].map(m=>(
+        <button key={m.id} className={`mobile-nav-item${page===m.id?' active':''}`} onClick={()=>setPage(m.id)}>
+          <span>{m.icon}</span><span>{m.label}</span>
+        </button>
+      ))}
+    </nav>
   </>;
 }
 
@@ -1108,7 +1304,7 @@ function StudentOverview({user,clearance,progressCount,progressPct,onGoClearance
       </div>
     </div>
 
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24}}>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:24}}>
       <div className="card">
         <h3 style={{fontSize:16,color:'var(--navy)',marginBottom:16}}>Student Information</h3>
         {[['Student ID',user.studentId],['Full Name',`${user.lastName}, ${user.firstName} ${user.middleName||''}`],['Course',user.course],['Year & Section',`${user.yearLevel} — ${user.section}`],['Department',user.department],['Contact',user.contactNumber],['Address',user.address]].map(([k,v])=>v?<div key={k} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid var(--border)',fontSize:14}}>
@@ -1143,10 +1339,10 @@ function ClearanceTracker({user,clearance,selectedOffice,setSelectedOffice}){
   const [questAnswers,setQuestAnswers]=useState({});
   const [reviewNote,setReviewNote]=useState(null);
 
-  const handleInitClearance=()=>{
+  const handleInitClearance=async()=>{
     if(!initForm.purpose)return;
     const detail=initForm.purpose==='Others'?initForm.purposeDetail:'';
-    store.initClearance(user.id,initForm.purpose,detail);
+    await store.initClearance(user.id,initForm.purpose,detail);
     setShowInit(false);
   };
 
@@ -1157,10 +1353,9 @@ function ClearanceTracker({user,clearance,selectedOffice,setSelectedOffice}){
     setSubmitModal(officeId);
   };
 
-  const handleSubmit=()=>{
+  const handleSubmit=async()=>{
     if(!submitModal)return;
     const cfg=OFFICES_CONFIG[submitModal];
-    // Validate all steps filled
     for(const step of cfg.steps){
       if(step.type==='file'&&!steps[step.id])return alert('Please upload all required documents.');
       if(step.type==='questionnaire'){
@@ -1172,7 +1367,7 @@ function ClearanceTracker({user,clearance,selectedOffice,setSelectedOffice}){
     const allSteps={...steps};
     const questStepId=cfg.steps.find(s=>s.type==='questionnaire')?.id;
     if(questStepId)allSteps[questStepId]={type:'questionnaire',answers:questAnswers,submittedAt:new Date().toISOString()};
-    store.submitOffice(user.id,submitModal,allSteps);
+    await store.submitOffice(user.id,submitModal,allSteps);
     setSubmitModal(null);
   };
 
@@ -1251,10 +1446,10 @@ function ClearanceTracker({user,clearance,selectedOffice,setSelectedOffice}){
               boxShadow:'0 2px 8px rgba(201,168,76,0.3)',
               letterSpacing:0.3,
             }}
-            onClick={e=>{e.stopPropagation();setInitForm(f=>({...f,purpose:card.purpose}));setTimeout(()=>{
-              store.initClearance(user.id,card.purpose,'');
+            onClick={e=>{e.stopPropagation();setInitForm(f=>({...f,purpose:card.purpose}));(async()=>{
+              await store.initClearance(user.id,card.purpose,'');
               setShowInit(false);
-            },0);}}
+            })();}}
           >Select This →</button>
         </div>
       ))}
@@ -1587,6 +1782,21 @@ function AdminDashboard({user,onLogout}){
         {page==='database'&&<AdminDatabase/>}
       </main>
     </div>
+    {/* Mobile bottom nav */}
+    <nav className="mobile-nav no-print">
+      {[
+        {id:'overview',icon:'📊',label:'Overview'},
+        {id:'registrations',icon:'📝',label:`Requests${pending.length>0?' ('+pending.length+')':''}`},
+        {id:'students',icon:'🎓',label:'Students'},
+        {id:'faculty',icon:'👨‍🏫',label:'Faculty'},
+        {id:'released',icon:'🎉',label:'Released'},
+        {id:'database',icon:'💾',label:'Database'},
+      ].map(m=>(
+        <button key={m.id} className={`mobile-nav-item${page===m.id?' active':''}`} onClick={()=>setPage(m.id)}>
+          <span>{m.icon}</span><span>{m.label}</span>
+        </button>
+      ))}
+    </nav>
   </>;
 }
 
@@ -1622,10 +1832,10 @@ function AdminRegistrations(){
   const allUsers=store.getAllUsers?store.users:store.users;
   const nonPending=allUsers.filter(u=>u.status!=='pending'&&u.role!==ROLES.ADMIN);
 
-  const handleApprove=(uid)=>store.updateStatus(uid,'accepted');
-  const handleReject=()=>{
+  const handleApprove=async(uid)=>{await store.updateStatus(uid,'accepted');};
+  const handleReject=async()=>{
     if(!rejectNote.trim())return alert('Please provide a reason for rejection.');
-    store.updateStatus(rejectModal,'rejected',rejectNote);
+    await store.updateStatus(rejectModal,'rejected',rejectNote);
     setRejectModal(null);setRejectNote('');
   };
 
@@ -1967,19 +2177,19 @@ function AdminFaculty(){
   };
   const removeSection=(s)=>set('handledSections',form.handledSections.filter(x=>x!==s));
 
-  const handleAdd=()=>{
+  const handleAdd=async()=>{
     setError('');
     if(!form.firstName||!form.lastName||!form.email||!form.password)return setError('All fields are required.');
     if(form.password.length<6)return setError('Password must be at least 6 characters.');
     if(form.facultyType==='dean'&&!form.deanDepartment)return setError('Please select the department for this Dean.');
     if(form.facultyType==='adviser'&&form.handledSections.length===0)return setError('Please add at least one section this adviser handles.');
-    const r=store.registerFaculty({...form,role:ROLES.FACULTY});
+    const r=await store.registerFaculty({...form,role:ROLES.FACULTY});
     if(!r.success)return setError(r.error);
     setShowAdd(false);setForm(emptyForm);setSectionInput('');setError('');
   };
 
-  const handleDelete=(uid)=>{
-    store.deleteFaculty(uid);
+  const handleDelete=async(uid)=>{
+    await store.deleteFaculty(uid);
     setDeleteModal(null);
   };
 
@@ -2228,6 +2438,17 @@ function FacultyDashboard({user,onLogout}){
         {selected&&<FacultyReviewModal req={selected} facultyType={user.facultyType} onClose={()=>setSelected(null)}/>}
       </main>
     </div>
+    {/* Mobile bottom nav */}
+    <nav className="mobile-nav no-print">
+      {[
+        {id:'requests',icon:'📋',label:`Pending (${pending.length})`},
+        {id:'reviewed',icon:'✅',label:'Reviewed'},
+      ].map(m=>(
+        <button key={m.id} className={`mobile-nav-item${page===m.id?' active':''}`} onClick={()=>setPage(m.id)}>
+          <span>{m.icon}</span><span>{m.label}</span>
+        </button>
+      ))}
+    </nav>
   </>;
 }
 
@@ -2264,8 +2485,8 @@ function FacultyReviewModal({req,facultyType,onClose}){
   const cfg=OFFICES_CONFIG[facultyType];
   const alreadyReviewed=['approved','rejected'].includes(off.status);
 
-  const handleSubmit=(approved)=>{
-    store.reviewOffice(req.studentId,facultyType,approved,note);
+  const handleSubmit=async(approved)=>{
+    await store.reviewOffice(req.studentId,facultyType,approved,note);
     setSubmitted(true);
     setTimeout(onClose,1500);
   };
@@ -2465,10 +2686,21 @@ function App(){
   const [selectedRole,setSelectedRole]=useState(null);
   const [selectedFacultyType,setSelectedFacultyType]=useState(null);
   const [currentUser,setCurrentUser]=useState(null);
-  const [countdown,setCountdown]=useState(null); // seconds remaining when warning shown
+  const [countdown,setCountdown]=useState(null);
+  const [dbReady,setDbReady]=useState(false);
   const timerRef=React.useRef(null);
   const warnRef=React.useRef(null);
   const countRef=React.useRef(null);
+
+  useEffect(()=>{
+    store.init().then(()=>setDbReady(true)).catch(e=>{console.error(e);setDbReady(true);});
+  },[]);
+
+  if(!dbReady)return <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'var(--cream)',gap:20}}>
+    <div style={{width:56,height:56,border:'5px solid var(--border)',borderTopColor:'var(--navy)',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/>
+    <div style={{fontFamily:'Playfair Display,serif',fontSize:22,color:'var(--navy)',fontWeight:700}}>ClearanceSync</div>
+    <div style={{color:'var(--muted)',fontSize:14}}>Connecting to database…</div>
+  </div>;
 
   const clearAllTimers=()=>{
     clearTimeout(timerRef.current);

@@ -319,14 +319,6 @@
 <body>
 <div id="app"></div>
 <script>
-  // Disable right-click context menu
-  document.addEventListener('contextmenu', e => e.preventDefault());
-  // Disable F12, Ctrl+U, Ctrl+Shift+I/J/C, Ctrl+S
-  document.addEventListener('keydown', e => {
-    if (e.key === 'F12') { e.preventDefault(); return false; }
-    if (e.ctrlKey && ['u','U','s','S'].includes(e.key)) { e.preventDefault(); return false; }
-    if (e.ctrlKey && e.shiftKey && ['i','I','j','J','c','C'].includes(e.key)) { e.preventDefault(); return false; }
-  });
 </script>
 
 <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
